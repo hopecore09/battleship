@@ -34,6 +34,19 @@ document.addEventListener('DOMContentLoaded', () => {
     myBoard: [], enemyBoard: [], remaining: [], gameOver: false
   };
 
+  const updateStatsDisplay = (stats) => {
+    if (!stats) return;
+    DOM.statsGames.textContent = stats.games || 0;
+    DOM.statsWins.textContent = stats.wins || 0;
+    DOM.statsLosses.textContent = stats.losses || 0;
+  };
+
+  const fetchStats = () => {
+    if (state.user) {
+      socket.emit('stats:get', { username: state.user });
+    }
+  };
+
   const showToast = (msg, type = 'info') => {
     const t = $('toast');
     t.textContent = msg;
@@ -46,6 +59,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const showScreen = id => {
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
     $(id).classList.remove('hidden');
+    if (id === 'lobby-screen' && state.user) {
+      fetchStats();
+    }
   };
 
   const emptyBoard = size => Array.from({ length: size }, () => Array(size).fill(''));
@@ -250,6 +266,42 @@ document.addEventListener('DOMContentLoaded', () => {
     renderEnemyBoard();
   };
 
+  const getShipCells = (board, row, col) => {
+    const size = board.length;
+    const visited = new Set();
+    const queue = [[row, col]];
+    const result = [];
+    while (queue.length) {
+      const [r, c] = queue.shift();
+      const key = `${r},${c}`;
+      if (visited.has(key)) continue;
+      if (r < 0 || r >= size || c < 0 || c >= size) continue;
+      if (board[r][c] !== 'hit') continue;
+      visited.add(key);
+      result.push([r, c]);
+      queue.push([r-1, c], [r+1, c], [r, c-1], [r, c+1]);
+    }
+    return result;
+  };
+
+  const markAdjacent = (board, row, col) => {
+    const size = board.length;
+    const cells = getShipCells(board, row, col);
+    for (const [r, c] of cells) {
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr = r + dr;
+          const nc = c + dc;
+          if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+            if (board[nr][nc] === '' || board[nr][nc] === 'ship') {
+              board[nr][nc] = 'adjacent-miss';
+            }
+          }
+        }
+      }
+    }
+  };
+
   const updatePlayers = game => {
     const players = game?.players || [];
     const names = players.map(p => {
@@ -378,11 +430,15 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on('user:joined', ({ username, stats }) => {
     state.user = username;
     DOM.playerName.textContent = username;
-    DOM.statsGames.textContent = stats.games || 0;
-    DOM.statsWins.textContent = stats.wins || 0;
-    DOM.statsLosses.textContent = stats.losses || 0;
+    updateStatsDisplay(stats);
     showScreen('lobby-screen');
     socket.emit('games:list');
+  });
+
+  socket.on('stats:update', ({ username, stats }) => {
+    if (username === state.user) {
+      updateStatsDisplay(stats);
+    }
   });
 
   socket.on('games:list', renderGames);
@@ -395,8 +451,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   socket.on('game:start', () => {
     state.isMyTurn = state.game.turn === state.user;
-    DOM.gameStatus.textContent = 'Your turn';
-    DOM.gameStatus.className = 'tag is-medium is-success';
+    DOM.gameStatus.textContent = state.isMyTurn ? 'Your turn' : 'Opponent\'s turn';
+    DOM.gameStatus.className = state.isMyTurn ? 'tag is-medium is-success' : 'tag is-medium is-warning';
     renderEnemyBoard();
     showControls(false);
   });
@@ -419,10 +475,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     if (isMyShot) {
-      state.enemyBoard = result.boardState;
+      state.enemyBoard[row][col] = result.isHit ? 'hit' : 'miss';
+      if (result.isHit && result.shipSunk) {
+        markAdjacent(state.enemyBoard, row, col);
+      }
       renderEnemyBoard();
     } else {
-      state.myBoard = result.boardState;
+      state.myBoard[row][col] = result.isHit ? 'hit' : 'miss';
+      if (result.isHit && result.shipSunk) {
+        markAdjacent(state.myBoard, row, col);
+      }
       renderMyBoard();
     }
     
