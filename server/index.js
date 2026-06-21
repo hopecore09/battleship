@@ -80,6 +80,11 @@ const handleExit = (socket, { gameId, playerName }) => {
   socket.leave(gameId);
 };
 
+const handleStatsGet = (socket, { username }) => {
+  const stats = users.getStats(username);
+  socket.emit('stats:update', { username, stats });
+};
+
 const handleDisconnect = (socket) => {
   const name = users.unregister(socket.id);
   if (!name) return;
@@ -108,6 +113,7 @@ io.on('connection', (socket) => {
   socket.on('game:move', data => handleMove(socket, data));
   socket.on('game:autoplace', data => handleAutoPlace(socket, data));
   socket.on('game:exit', data => handleExit(socket, data));
+  socket.on('stats:get', data => handleStatsGet(socket, data));
   socket.on('disconnect', () => handleDisconnect(socket));
 });
 
