@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Battleship</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <section class="section">
+    <div class="container">
+      
+      <!-- Auth -->
+      <div id="auth-screen" class="screen">
+        <div class="box" style="max-width:400px;margin:0 auto;">
+          <h1 class="title has-text-centered">⚓ Battleship</h1>
+          <p class="subtitle has-text-centered">Online multiplayer</p>
+          <div class="field has-addons">
+            <div class="control is-expanded">
+              <input class="input" id="username-input" placeholder="Your name" maxlength="20">
+            </div>
+            <div class="control">
+              <button class="button is-primary" id="join-btn" disabled>Play</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lobby -->
+      <div id="lobby-screen" class="screen hidden">
+        <div class="box">
+          <div class="level">
+            <div class="level-left">
+              <h2 class="title is-4">Welcome, <span id="player-name"></span></h2>
+            </div>
+            <div class="level-right">
+              <button class="button is-success" id="create-game-btn">+ New Game</button>
+            </div>
+          </div>
+          
+          <div class="columns">
+            <div class="column is-two-thirds">
+              <h3 class="title is-5">Available Games</h3>
+              <div id="games-list" class="columns is-multiline"></div>
+            </div>
+            <div class="column">
+              <div class="box" style="background:rgba(255,255,255,0.03);">
+                <h3 class="title is-5">Your Stats</h3>
+                <div class="level">
+                  <div class="level-item has-text-centered">
+                    <div><p class="heading" style="font-size:0.7rem;color:rgba(255,255,255,0.4);">Games</p><p class="title is-4" id="stats-games" style="font-weight:300;">0</p></div>
+                  </div>
+                  <div class="level-item has-text-centered">
+                    <div><p class="heading" style="font-size:0.7rem;color:rgba(255,255,255,0.4);">Wins</p><p class="title is-4" id="stats-wins" style="color:#2ecc71;font-weight:300;">0</p></div>
+                  </div>
+                  <div class="level-item has-text-centered">
+                    <div><p class="heading" style="font-size:0.7rem;color:rgba(255,255,255,0.4);">Losses</p><p class="title is-4" id="stats-losses" style="color:#e74c3c;font-weight:300;">0</p></div>
+                  </div>
+                </div>
+                <div style="height:3px;background:linear-gradient(90deg,#2ecc71,#f39c12,#e74c3c);border-radius:2px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Setup -->
+      <div id="setup-screen" class="screen hidden">
+        <div class="box" style="max-width:500px;margin:0 auto;">
+          <h2 class="title is-4">Game Setup</h2>
+          <div class="field">
+            <label class="label">Grid Size</label>
+            <div class="select is-fullwidth">
+              <select id="grid-size">
+                <option value="8">8×8</option>
+                <option value="10" selected>10×10</option>
+                <option value="12">12×12</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">Ships</label>
+            <div id="ships-config"></div>
+          </div>
+          <button class="button is-primary is-fullwidth" id="create-game-confirm">Create Game</button>
+        </div>
+      </div>
+
+      <!-- Game -->
+      <div id="game-screen" class="screen hidden">
+        <div class="box">
+          <div class="level">
+            <div class="level-left"><h2 class="title is-4">⚓ Battleship</h2></div>
+            <div class="level-right">
+              <span class="tag is-medium" id="game-status">Waiting</span>
+              <button class="button is-danger is-light" id="exit-game-btn">Exit</button>
+            </div>
+          </div>
+          <div id="game-players" style="font-size:1rem;font-weight:500;margin-bottom:1rem;color:rgba(255,255,255,0.7);"></div>
+          
+          <div class="columns">
+            <div class="column">
+              <div class="has-text-centered">
+                <h3 class="title is-6">Your Board</h3>
+                <div id="my-board" class="board-grid"></div>
+                <div style="max-width:450px;margin:0.5rem auto;">
+                  <div id="ship-selection" style="display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:center;min-height:2.5rem;margin-bottom:0.5rem;"></div>
+                  <div id="game-controls" class="buttons are-small is-centered">
+                    <button class="button is-light" id="rotate-btn">Rotate</button>
+                    <button class="button is-light" id="auto-place-btn">Auto</button>
+                    <button class="button is-light" id="reset-ships-btn">Reset</button>
+                    <button class="button is-primary" id="ready-btn" disabled>Ready</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="column">
+              <div class="has-text-centered">
+                <h3 class="title is-6">Opponent</h3>
+                <div id="enemy-board" class="board-grid"></div>
+                <div id="enemy-info" style="margin-top:0.5rem;color:rgba(255,255,255,0.4);">Waiting...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </section>
+
+  <div id="toast" class="toast"></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
