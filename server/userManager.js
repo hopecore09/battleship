@@ -34,8 +34,17 @@ class UserManager {
 
   unregister(socketId) {
     const name = this.sessions[socketId];
+    if (!name) return null;
+    
     delete this.sessions[socketId];
-    return name || null;
+    
+    const rawName = name.split(' ')[0];
+    const active = Object.values(this.sessions).filter(n => n.startsWith(rawName));
+    if (active.length === 0) {
+      this.counters[rawName] = 0;
+    }
+    
+    return name;
   }
 
   getStats(name) {
