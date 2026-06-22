@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const socket = io();
   const $ = id => document.getElementById(id);
-  
+
   const DOM = {
     username: $('username-input'),
     joinBtn: $('join-btn'),
@@ -34,19 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
     myBoard: [], enemyBoard: [], remaining: [], gameOver: false
   };
 
-  const updateStatsDisplay = (stats) => {
-    if (!stats) return;
-    DOM.statsGames.textContent = stats.games || 0;
-    DOM.statsWins.textContent = stats.wins || 0;
-    DOM.statsLosses.textContent = stats.losses || 0;
-  };
-
-  const fetchStats = () => {
-    if (state.user) {
-      socket.emit('stats:get', { username: state.user });
-    }
-  };
-
   const showToast = (msg, type = 'info') => {
     const t = $('toast');
     t.textContent = msg;
@@ -60,8 +47,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
     $(id).classList.remove('hidden');
     if (id === 'lobby-screen' && state.user) {
-      fetchStats();
+      socket.emit('stats:get', { username: state.user });
     }
+  };
+
+  const emptyBoard = size => Array.from({ length: size }, () => Array(size).fill(''));
+
+  const updateStatsDisplay = stats => {
+    if (!stats) return;
+    DOM.statsGames.textContent = stats.games || 0;
+    DOM.statsWins.textContent = stats.wins || 0;
+    DOM.statsLosses.textContent = stats.losses || 0;
+  };
+
+  const fetchStats = () => {
+    if (state.user) socket.emit('stats:get', { username: state.user });
   };
 
   const updateTurnStatus = () => {
@@ -70,35 +70,25 @@ document.addEventListener('DOMContentLoaded', () => {
     DOM.gameStatus.className = state.isMyTurn ? 'tag is-medium is-success' : 'tag is-medium is-warning';
   };
 
-  const emptyBoard = size => Array.from({ length: size }, () => Array(size).fill(''));
+  const setGameStatus = (text, className) => {
+    DOM.gameStatus.textContent = text;
+    DOM.gameStatus.className = className;
+  };
 
-const renderGames = games => {
-  DOM.gamesList.innerHTML = '';
-  const available = Object.values(games).filter(g => g.status === 'waiting');
-  if (!available.length) {
-    DOM.gamesList.innerHTML = '<p class="has-text-centered has-text-grey-light">No games</p>';
-    return;
-  }
-  available.forEach(game => {
-    const card = document.createElement('div');
-    card.className = 'column is-one-third';
-    const room = game.id.split('_')[0];
-    
-    card.innerHTML = `
-      <div class="card">
-        <div class="card-content has-text-centered">
-          <p class="title is-6">${room}'s game</p>
-          <p class="subtitle is-7">${game.size}x${game.size}</p>
-          <button class="button is-primary is-small">Join</button>
-        </div>
-      </div>
-    `;
-    card.querySelector('button').onclick = () => {
-      socket.emit('game:join', { gameId: game.id, playerName: state.user });
-    };
-    DOM.gamesList.appendChild(card);
-  });
-};
+  const updatePlayers = game => {
+    const players = game?.players || [];
+    DOM.gamePlayers.innerHTML = players.map(p => {
+      const isMe = p.name === state.user;
+      const ready = p.ready ? ' ✓' : ' …';
+      return `${isMe ? '• ' : ''}${p.name}${ready}`;
+    }).join(' &nbsp;|&nbsp; ') || 'Waiting...';
+  };
+
+  const showControls = show => {
+    DOM.controls.querySelectorAll('button').forEach(btn => {
+      btn.classList.toggle('hidden-btn', !show);
+    });
+  };
 
   const createCell = (row, col, value, isEnemy = false) => {
     const cell = document.createElement('div');
@@ -111,33 +101,68 @@ const renderGames = games => {
     return cell;
   };
 
-    const renderBoard = (board, container, isEnemy = false) => {
+  const addCellEvents = (cell, r, c, isEnemy) => {
+    if (isEnemy && state.isMyTurn && state.game?.status === 'playing' && !state.enemyBoard[r][c]) {
+      cell.classList.add('can-shoot');
+      cell.style.cursor = 'pointer';
+      cell.onclick = () => makeMove(r, c);
+    }
+    if (!isEnemy && !state.isReady && state.game?.status === 'waiting') {
+      cell.onclick = () => handleCellClick(r, c);
+      cell.onmouseenter = () => previewShip(r, c);
+      cell.onmouseleave = clearPreview;
+    }
+  };
+
+  const renderBoard = (board, container, isEnemy = false) => {
     const size = board.length;
     container.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
     container.innerHTML = '';
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         const cell = createCell(r, c, board[r][c], isEnemy);
-        if (isEnemy && state.isMyTurn && state.game?.status === 'playing' && !board[r][c]) {
-          cell.classList.add('can-shoot');
-          cell.style.cursor = 'pointer';
-          cell.onclick = () => makeMove(r, c);
-        }
-        if (!isEnemy && !state.isReady && state.game?.status === 'waiting') {
-          cell.onclick = () => handleCellClick(r, c);
-          cell.onmouseenter = () => previewShip(r, c);
-          cell.onmouseleave = clearPreview;
-        }
+        addCellEvents(cell, r, c, isEnemy);
         container.appendChild(cell);
       }
     }
-    if (!isEnemy && state.game?.status === 'waiting') {
-      updateShipSelection();
-    }
+    if (!isEnemy && state.game?.status === 'waiting') updateShipSelection();
   };
 
-const renderMyBoard = () => renderBoard(state.myBoard, DOM.myBoard);
-const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, true);
+  const renderMyBoard = () => renderBoard(state.myBoard, DOM.myBoard);
+  const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, true);
+
+  const clearShipSelection = () => {
+    document.querySelectorAll('.ship-select-btn').forEach(b => b.classList.remove('active'));
+  };
+
+  const createShipButton = (size, count) => {
+    const btn = document.createElement('button');
+    btn.className = 'ship-select-btn button is-small is-light';
+    btn.dataset.size = size;
+    btn.textContent = `${size}-cell (${count})`;
+    btn.onclick = () => {
+      if (state.remaining.includes(Number(size))) {
+        state.selectedShip = Number(size);
+        document.querySelectorAll('.ship-select-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+    };
+    return btn;
+  };
+
+  const updateShipSelection = () => {
+    const counts = {};
+    state.remaining.forEach(s => { counts[s] = (counts[s] || 0) + 1; });
+    DOM.shipSelection.innerHTML = '';
+    if (!Object.keys(counts).length) {
+      DOM.shipSelection.innerHTML = '<span class="has-text-success">All placed</span>';
+      state.selectedShip = null;
+      return;
+    }
+    Object.entries(counts).sort((a, b) => b[0] - a[0]).forEach(([size, count]) => {
+      DOM.shipSelection.appendChild(createShipButton(size, count));
+    });
+  };
 
   const canPlaceShip = (row, col, size, horiz) => {
     const n = state.myBoard.length;
@@ -156,11 +181,8 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
       const c = horiz ? col + i : col;
       for (let dr = -1; dr <= 1; dr++) {
         for (let dc = -1; dc <= 1; dc++) {
-          const nr = r + dr;
-          const nc = c + dc;
-          if (nr >= 0 && nr < n && nc >= 0 && nc < n && state.myBoard[nr][nc] === 'ship') {
-            return true;
-          }
+          const nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < n && nc >= 0 && nc < n && state.myBoard[nr][nc] === 'ship') return true;
         }
       }
     }
@@ -194,19 +216,11 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
     }
     const horiz = state.orientation === 'horizontal';
     const size = state.selectedShip;
-    if (!canPlaceShip(row, col, size, horiz)) {
+    if (!canPlaceShip(row, col, size, horiz) || hasAdjacentShip(row, col, size, horiz)) {
       showToast('Cannot place here', 'error');
       return;
     }
-    if (hasAdjacentShip(row, col, size, horiz)) {
-      showToast('Ships cannot touch', 'error');
-      return;
-    }
     placeShip(row, col, size, horiz);
-  };
-
-  const clearShipSelection = () => {
-    document.querySelectorAll('.ship-select-btn').forEach(b => b.classList.remove('active'));
   };
 
   const previewShip = (row, col) => {
@@ -229,34 +243,8 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
     DOM.myBoard.querySelectorAll('.ship-preview').forEach(el => el.classList.remove('ship-preview'));
   };
 
-  const updateShipSelection = () => {
-    const counts = {};
-    state.remaining.forEach(s => { counts[s] = (counts[s] || 0) + 1; });
-    DOM.shipSelection.innerHTML = '';
-    if (!Object.keys(counts).length) {
-      DOM.shipSelection.innerHTML = '<span class="has-text-success">All placed</span>';
-      state.selectedShip = null;
-      return;
-    }
-    Object.entries(counts).sort((a, b) => b[0] - a[0]).forEach(([size, count]) => {
-      const btn = document.createElement('button');
-      btn.className = 'ship-select-btn button is-small is-light';
-      btn.dataset.size = size;
-      btn.textContent = `${size}-cell (${count})`;
-      btn.onclick = () => {
-        if (state.remaining.includes(Number(size))) {
-          state.selectedShip = Number(size);
-          document.querySelectorAll('.ship-select-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-        }
-      };
-      DOM.shipSelection.appendChild(btn);
-    });
-  };
-
   const makeMove = (row, col) => {
-    if (!state.isMyTurn || state.game?.status !== 'playing') return;
-    if (state.enemyBoard[row][col]) return;
+    if (!state.isMyTurn || state.game?.status !== 'playing' || state.enemyBoard[row][col]) return;
     socket.emit('game:move', {
       gameId: state.gameId,
       playerId: state.user,
@@ -273,9 +261,7 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
     while (queue.length) {
       const [r, c] = queue.shift();
       const key = `${r},${c}`;
-      if (visited.has(key)) continue;
-      if (r < 0 || r >= size || c < 0 || c >= size) continue;
-      if (board[r][c] !== 'hit') continue;
+      if (visited.has(key) || r < 0 || r >= size || c < 0 || c >= size || board[r][c] !== 'hit') continue;
       visited.add(key);
       result.push([r, c]);
       queue.push([r-1, c], [r+1, c], [r, c-1], [r, c+1]);
@@ -289,8 +275,7 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
     for (const [r, c] of cells) {
       for (let dr = -1; dr <= 1; dr++) {
         for (let dc = -1; dc <= 1; dc++) {
-          const nr = r + dr;
-          const nc = c + dc;
+          const nr = r + dr, nc = c + dc;
           if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
             if (board[nr][nc] === '' || board[nr][nc] === 'ship') {
               board[nr][nc] = 'adjacent-miss';
@@ -299,22 +284,6 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
         }
       }
     }
-  };
-
-  const updatePlayers = game => {
-    const players = game?.players || [];
-    const names = players.map(p => {
-      const isMe = p.name === state.user;
-      const ready = p.ready ? ' ✓' : ' …';
-      return `${isMe ? '• ' : ''}${p.name}${ready}`;
-    });
-    DOM.gamePlayers.innerHTML = names.length ? names.join(' &nbsp;|&nbsp; ') : 'Waiting...';
-  };
-
-  const showControls = show => {
-    DOM.controls.querySelectorAll('button').forEach(btn => {
-      btn.classList.toggle('hidden-btn', !show);
-    });
   };
 
   const initGame = game => {
@@ -355,8 +324,7 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
 
   const updateWaiting = game => {
     const ready = game.players.filter(p => p.ready).length;
-    DOM.gameStatus.textContent = `Waiting (${ready}/${game.players.length})`;
-    DOM.gameStatus.className = 'tag is-medium is-warning';
+    setGameStatus(`Waiting (${ready}/${game.players.length})`, 'tag is-medium is-warning');
     DOM.readyBtn.textContent = state.isReady ? 'Waiting...' : 'Ready';
     DOM.readyBtn.disabled = state.isReady || state.remaining.length > 0;
     showControls(true);
@@ -370,6 +338,37 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
     updateTurnStatus();
   };
 
+  const createGameCard = game => {
+    const card = document.createElement('div');
+    card.className = 'column is-one-third';
+    const room = game.id.split('_')[0];
+    card.innerHTML = `
+      <div class="card">
+        <div class="card-content has-text-centered">
+          <p class="title is-6">${room}'s game</p>
+          <p class="subtitle is-7">${game.size}x${game.size}</p>
+          <button class="button is-primary is-small">Join</button>
+        </div>
+      </div>
+    `;
+    card.querySelector('button').onclick = () => {
+      socket.emit('game:join', { gameId: game.id, playerName: state.user });
+    };
+    return card;
+  };
+
+  const renderGames = games => {
+    DOM.gamesList.innerHTML = '';
+    const available = Object.values(games).filter(g => g.status === 'waiting');
+    if (!available.length) {
+      DOM.gamesList.innerHTML = '<p class="has-text-centered has-text-grey-light">No games</p>';
+      return;
+    }
+    available.forEach(game => {
+      DOM.gamesList.appendChild(createGameCard(game));
+    });
+  };
+
   const getShipCounts = () => {
     const ships = [];
     document.querySelectorAll('.ship-count').forEach(span => {
@@ -377,6 +376,34 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
       for (let i = 0; i < count; i++) ships.push(Number(span.dataset.size));
     });
     return ships;
+  };
+
+  const createShipConfigItem = (size, count, names) => {
+    const div = document.createElement('div');
+    div.className = 'field is-grouped is-grouped-multiline';
+    div.style.cssText = 'margin-bottom:0.25rem;align-items:center;';
+    div.innerHTML = `
+      <div class="control" style="min-width:70px;">
+        <span class="tag is-dark" style="font-weight:600;font-size:0.9rem;">${names[size]}</span>
+      </div>
+      <div class="control" style="margin-left:0.5rem;">
+        <div class="tags has-addons">
+          <button class="tag is-light ship-dec" data-size="${size}" style="border:none;cursor:pointer;font-size:1rem;font-weight:700;padding:0 8px;">−</button>
+          <span class="tag is-info ship-count" data-size="${size}" style="font-size:0.9rem;font-weight:700;min-width:30px;justify-content:center;">${count}</span>
+          <button class="tag is-light ship-inc" data-size="${size}" style="border:none;cursor:pointer;font-size:1rem;font-weight:700;padding:0 8px;">+</button>
+        </div>
+      </div>
+    `;
+    return div;
+  };
+
+  const bindShipButton = (btn, type) => {
+    btn.onclick = () => {
+      const span = document.querySelector(`.ship-count[data-size="${btn.dataset.size}"]`);
+      let val = Number(span.textContent);
+      if (type === 'dec' && val > 0) span.textContent = --val;
+      if (type === 'inc' && val < 5) span.textContent = ++val;
+    };
   };
 
   const initShipConfig = () => {
@@ -389,41 +416,21 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
     const names = { 5: 'Five', 4: 'Four', 3: 'Three', 2: 'Two', 1: 'One' };
     DOM.shipsConfig.innerHTML = '';
     Object.entries(counts).sort((a, b) => b[0] - a[0]).forEach(([size, count]) => {
-      const div = document.createElement('div');
-      div.className = 'field is-grouped is-grouped-multiline';
-      div.style.cssText = 'margin-bottom:0.25rem;align-items:center;';
-      div.innerHTML = `
-        <div class="control" style="min-width:70px;">
-          <span class="tag is-dark" style="font-weight:600;font-size:0.9rem;">${names[size]}</span>
-        </div>
-        <div class="control" style="margin-left:0.5rem;">
-          <div class="tags has-addons">
-            <button class="tag is-light ship-dec" data-size="${size}" style="border:none;cursor:pointer;font-size:1rem;font-weight:700;padding:0 8px;">−</button>
-            <span class="tag is-info ship-count" data-size="${size}" style="font-size:0.9rem;font-weight:700;min-width:30px;justify-content:center;">${count}</span>
-            <button class="tag is-light ship-inc" data-size="${size}" style="border:none;cursor:pointer;font-size:1rem;font-weight:700;padding:0 8px;">+</button>
-          </div>
-        </div>
-      `;
-      DOM.shipsConfig.appendChild(div);
+      DOM.shipsConfig.appendChild(createShipConfigItem(size, count, names));
     });
-    bindShipButtons();
+    document.querySelectorAll('.ship-dec').forEach(btn => bindShipButton(btn, 'dec'));
+    document.querySelectorAll('.ship-inc').forEach(btn => bindShipButton(btn, 'inc'));
   };
 
-  const bindShipButtons = () => {
-    document.querySelectorAll('.ship-dec').forEach(btn => {
-      btn.onclick = () => {
-        const span = document.querySelector(`.ship-count[data-size="${btn.dataset.size}"]`);
-        let val = Number(span.textContent);
-        if (val > 0) span.textContent = --val;
-      };
-    });
-    document.querySelectorAll('.ship-inc').forEach(btn => {
-      btn.onclick = () => {
-        const span = document.querySelector(`.ship-count[data-size="${btn.dataset.size}"]`);
-        let val = Number(span.textContent);
-        if (val < 5) span.textContent = ++val;
-      };
-    });
+  const handleWin = (result, row, col, isMyShot) => {
+    if (isMyShot && result.isHit) state.enemyBoard[row][col] = 'hit';
+    else if (!isMyShot && result.isHit) state.myBoard[row][col] = 'hit';
+    renderMyBoard();
+    renderEnemyBoard();
+    setGameStatus(`${result.winner} wins!`, 'tag is-medium is-danger');
+    state.gameOver = true;
+    showControls(false);
+    showToast(`${result.winner} wins!`, 'success');
   };
 
   socket.on('user:joined', ({ username, stats }) => {
@@ -435,9 +442,7 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
   });
 
   socket.on('stats:update', ({ username, stats }) => {
-    if (username === state.user) {
-      updateStatsDisplay(stats);
-    }
+    if (username === state.user) updateStatsDisplay(stats);
   });
 
   socket.on('games:list', renderGames);
@@ -462,29 +467,17 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
     const isMyShot = result.playerName === state.user;
     
     if (result.winner) {
-      if (isMyShot && result.isHit) state.enemyBoard[row][col] = 'hit';
-      else if (!isMyShot && result.isHit) state.myBoard[row][col] = 'hit';
-      renderMyBoard();
-      renderEnemyBoard();
-      DOM.gameStatus.textContent = `${result.winner} wins!`;
-      DOM.gameStatus.className = 'tag is-medium is-danger';
-      state.gameOver = true;
-      showControls(false);
-      showToast(`${result.winner} wins!`, 'success');
+      handleWin(result, row, col, isMyShot);
       return;
     }
     
     if (isMyShot) {
       state.enemyBoard[row][col] = result.isHit ? 'hit' : 'miss';
-      if (result.isHit && result.shipSunk) {
-        markAdjacent(state.enemyBoard, row, col);
-      }
+      if (result.isHit && result.shipSunk) markAdjacent(state.enemyBoard, row, col);
       renderEnemyBoard();
     } else {
       state.myBoard[row][col] = result.isHit ? 'hit' : 'miss';
-      if (result.isHit && result.shipSunk) {
-        markAdjacent(state.myBoard, row, col);
-      }
+      if (result.isHit && result.shipSunk) markAdjacent(state.myBoard, row, col);
       renderMyBoard();
     }
     
@@ -496,8 +489,7 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
   });
 
   socket.on('game:over', result => {
-    DOM.gameStatus.textContent = `${result.winner} wins!`;
-    DOM.gameStatus.className = 'tag is-medium is-danger';
+    setGameStatus(`${result.winner} wins!`, 'tag is-medium is-danger');
     state.gameOver = true;
     showControls(false);
     showToast(`${result.winner} wins!`, 'success');
@@ -505,8 +497,7 @@ const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, tru
 
   socket.on('game:opponentLeft', message => {
     if (!message.includes(state.user)) showToast('Opponent left — you win!', 'success');
-    DOM.gameStatus.textContent = 'You win!';
-    DOM.gameStatus.className = 'tag is-medium is-success';
+    setGameStatus('You win!', 'tag is-medium is-success');
     state.gameOver = true;
     showControls(false);
     renderEnemyBoard();
