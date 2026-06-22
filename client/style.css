@@ -22,14 +22,9 @@
 }
 
 .cell.ship-placed { background: rgba(59,130,246,0.5); border-color: rgba(59,130,246,0.3); }
-.cell.ship-preview { background: rgba(251,191,36,0.3); border-color: rgba(251,191,36,0.3); animation: pulse 0.8s infinite; }
+.cell.ship-preview { background: rgba(251,191,36,0.3); border-color: rgba(251,191,36,0.3); }
 .cell.hit { background: rgba(239,68,68,0.6) !important; border-color: #ef4444 !important; }
-.cell.miss, 
-.cell.adjacent-miss { 
-  background: rgba(255, 255, 255, 0.2) !important; 
-  border-color: rgba(255, 255, 255, 0.1) !important; 
-}
-
+.cell.miss, .cell.adjacent-miss { background: rgba(255,255,255,0.2) !important; border-color: rgba(255,255,255,0.1) !important; }
 .cell.enemy-cell.can-shoot { cursor: pointer; }
 .cell.enemy-cell.can-shoot:hover { background: rgba(59,130,246,0.2); transform: scale(1.05); }
 
@@ -48,17 +43,8 @@
   opacity: 0;
   transition: opacity 0.3s;
   pointer-events: none;
-  background: rgba(0,0,0,0.8);
-  backdrop-filter: blur(10px);
 }
 .toast.show { opacity: 1; }
 .toast.error { background: rgba(239,68,68,0.9); }
 .toast.success { background: rgba(34,197,94,0.9); }
 .toast.info { background: rgba(59,130,246,0.9); }
-
-@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
-
-@media (max-width:768px) {
-  .board-grid { max-width:350px; }
-  .columns { flex-direction:column; }
-}
