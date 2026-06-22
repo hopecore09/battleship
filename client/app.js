@@ -64,6 +64,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  const updateTurnStatus = () => {
+    const text = state.isMyTurn ? 'Your turn' : 'Opponent\'s turn';
+    DOM.gameStatus.textContent = text;
+    DOM.gameStatus.className = state.isMyTurn ? 'tag is-medium is-success' : 'tag is-medium is-warning';
+    DOM.shipSelection.innerHTML = `<span class="has-text-weight-bold has-text-success">${text}</span>`;
+  };
+
   const emptyBoard = size => Array.from({ length: size }, () => Array(size).fill(''));
 
   const renderGames = games => {
@@ -365,11 +372,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const updatePlaying = game => {
     state.isMyTurn = game.turn === state.user;
-    DOM.gameStatus.textContent = state.isMyTurn ? 'Your turn' : 'Opponent\'s turn';
-    DOM.gameStatus.className = state.isMyTurn ? 'tag is-medium is-success' : 'tag is-medium is-warning';
     DOM.enemyInfo.textContent = '';
     renderEnemyBoard();
     showControls(false);
+    updateTurnStatus();
   };
 
   const getShipCounts = () => {
@@ -452,11 +458,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   socket.on('game:start', () => {
     state.isMyTurn = state.game.turn === state.user;
-    DOM.gameStatus.textContent = state.isMyTurn ? 'Your turn' : 'Opponent\'s turn';
-    DOM.gameStatus.className = state.isMyTurn ? 'tag is-medium is-success' : 'tag is-medium is-warning';
     DOM.enemyInfo.textContent = '';
+    DOM.shipSelection.innerHTML = '';
     renderEnemyBoard();
     showControls(false);
+    updateTurnStatus();
   });
 
   socket.on('game:move', result => {
