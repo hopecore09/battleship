@@ -110,41 +110,33 @@ document.addEventListener('DOMContentLoaded', () => {
     return cell;
   };
 
-  const renderMyBoard = () => {
-    const size = state.myBoard.length;
-    DOM.myBoard.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
-    DOM.myBoard.innerHTML = '';
+    const renderBoard = (board, container, isEnemy = false) => {
+    const size = board.length;
+    container.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+    container.innerHTML = '';
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
-        const cell = createCell(r, c, state.myBoard[r][c]);
-        if (!state.isReady && state.game?.status === 'waiting') {
-          cell.onclick = () => handleCellClick(r, c);
-          cell.onmouseenter = () => previewShip(r, c);
-          cell.onmouseleave = clearPreview;
-        }
-        DOM.myBoard.appendChild(cell);
-      }
-    }
-    updateShipSelection();
-  };
-
-  const renderEnemyBoard = () => {
-    const size = state.enemyBoard.length;
-    DOM.enemyBoard.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
-    DOM.enemyBoard.innerHTML = '';
-    for (let r = 0; r < size; r++) {
-      for (let c = 0; c < size; c++) {
-        const cell = createCell(r, c, state.enemyBoard[r][c], true);
-        const canShoot = state.isMyTurn && state.game?.status === 'playing' && !state.enemyBoard[r][c];
-        if (canShoot) {
+        const cell = createCell(r, c, board[r][c], isEnemy);
+        if (isEnemy && state.isMyTurn && state.game?.status === 'playing' && !board[r][c]) {
           cell.classList.add('can-shoot');
           cell.style.cursor = 'pointer';
           cell.onclick = () => makeMove(r, c);
         }
-        DOM.enemyBoard.appendChild(cell);
+        if (!isEnemy && !state.isReady && state.game?.status === 'waiting') {
+          cell.onclick = () => handleCellClick(r, c);
+          cell.onmouseenter = () => previewShip(r, c);
+          cell.onmouseleave = clearPreview;
+        }
+        container.appendChild(cell);
       }
     }
+    if (!isEnemy && state.game?.status === 'waiting') {
+      updateShipSelection();
+    }
   };
+
+const renderMyBoard = () => renderBoard(state.myBoard, DOM.myBoard);
+const renderEnemyBoard = () => renderBoard(state.enemyBoard, DOM.enemyBoard, true);
 
   const canPlaceShip = (row, col, size, horiz) => {
     const n = state.myBoard.length;
