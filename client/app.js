@@ -367,6 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.isMyTurn = game.turn === state.user;
     DOM.gameStatus.textContent = state.isMyTurn ? 'Your turn' : 'Opponent\'s turn';
     DOM.gameStatus.className = state.isMyTurn ? 'tag is-medium is-success' : 'tag is-medium is-warning';
+    DOM.enemyInfo.textContent = '';
     renderEnemyBoard();
     showControls(false);
   };
@@ -453,6 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.isMyTurn = state.game.turn === state.user;
     DOM.gameStatus.textContent = state.isMyTurn ? 'Your turn' : 'Opponent\'s turn';
     DOM.gameStatus.className = state.isMyTurn ? 'tag is-medium is-success' : 'tag is-medium is-warning';
+    DOM.enemyInfo.textContent = '';
     renderEnemyBoard();
     showControls(false);
   });
