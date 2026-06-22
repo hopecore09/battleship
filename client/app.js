@@ -72,32 +72,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const emptyBoard = size => Array.from({ length: size }, () => Array(size).fill(''));
 
-  const renderGames = games => {
-    DOM.gamesList.innerHTML = '';
-    const available = Object.values(games).filter(g => g.status === 'waiting');
-    if (!available.length) {
-      DOM.gamesList.innerHTML = '<p class="has-text-centered has-text-grey-light">No games</p>';
-      return;
-    }
-    available.forEach(game => {
-      const card = document.createElement('div');
-      card.className = 'column is-one-third';
-      const room = game.id.split('_')[0];
-      card.innerHTML = `
-        <div class="card">
-          <div class="card-content has-text-centered">
-            <p class="title is-6">${room}'s game</p>
-            <p class="subtitle is-7">${game.size}x${game.size}</p>
-            <button class="button is-primary is-small">Join</button>
-          </div>
+const renderGames = games => {
+  DOM.gamesList.innerHTML = '';
+  const available = Object.values(games).filter(g => g.status === 'waiting');
+  if (!available.length) {
+    DOM.gamesList.innerHTML = '<p class="has-text-centered has-text-grey-light">No games</p>';
+    return;
+  }
+  available.forEach(game => {
+    const card = document.createElement('div');
+    card.className = 'column is-one-third';
+    const room = game.id.split('_')[0];
+    const shipsText = [...game.fleet].sort((a,b) => b - a).join(' ');
+    
+    card.innerHTML = `
+      <div class="card">
+        <div class="card-content has-text-centered">
+          <p class="title is-6">${room}'s game</p>
+          <p class="subtitle is-7">${game.size}x${game.size}</p>
+          <p class="is-size-7 has-text-grey-light" style="font-size:0.7rem;">${shipsText}</p>
+          <button class="button is-primary is-small">Join</button>
         </div>
-      `;
-      card.querySelector('button').onclick = () => {
-        socket.emit('game:join', { gameId: game.id, playerName: state.user });
-      };
-      DOM.gamesList.appendChild(card);
-    });
-  };
+      </div>
+    `;
+    card.querySelector('button').onclick = () => {
+      socket.emit('game:join', { gameId: game.id, playerName: state.user });
+    };
+    DOM.gamesList.appendChild(card);
+  });
+};
 
   const createCell = (row, col, value, isEnemy = false) => {
     const cell = document.createElement('div');
