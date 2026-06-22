@@ -68,12 +68,15 @@ const handleAutoPlace = (socket, { gameId, playerId }) => {
 const handleExit = (socket, { gameId, playerName }) => {
   const game = games.games?.[gameId];
   if (!game) return;
-  const opponent = Object.keys(game.players).find(p => p !== playerName);
-  if (opponent) {
-    users.recordWin(opponent);
-    users.recordLoss(playerName);
-    io.to(gameId).emit('game:opponentLeft', `${playerName} left — you win!`);
-    io.to(gameId).emit('game:over', { winner: opponent });
+
+  if (game.status !== 'finished') {
+    const opponent = Object.keys(game.players).find(p => p !== playerName);
+    if (opponent) {
+      users.recordWin(opponent);
+      users.recordLoss(playerName);
+      io.to(gameId).emit('game:opponentLeft', `${playerName} left — you win!`);
+      io.to(gameId).emit('game:over', { winner: opponent });
+    }
   }
   games.remove(gameId);
   io.emit('games:update', games.list());
