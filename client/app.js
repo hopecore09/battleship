@@ -83,14 +83,12 @@ const renderGames = games => {
     const card = document.createElement('div');
     card.className = 'column is-one-third';
     const room = game.id.split('_')[0];
-    const shipsText = [...game.fleet].sort((a,b) => b - a).join(' ');
     
     card.innerHTML = `
       <div class="card">
         <div class="card-content has-text-centered">
           <p class="title is-6">${room}'s game</p>
           <p class="subtitle is-7">${game.size}x${game.size}</p>
-          <p class="is-size-7 has-text-grey-light" style="font-size:0.7rem;">${shipsText}</p>
           <button class="button is-primary is-small">Join</button>
         </div>
       </div>
