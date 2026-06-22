@@ -68,7 +68,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const text = state.isMyTurn ? 'Your turn' : 'Opponent\'s turn';
     DOM.gameStatus.textContent = text;
     DOM.gameStatus.className = state.isMyTurn ? 'tag is-medium is-success' : 'tag is-medium is-warning';
-    DOM.shipSelection.innerHTML = `<span class="has-text-weight-bold has-text-success">${text}</span>`;
   };
 
   const emptyBoard = size => Array.from({ length: size }, () => Array(size).fill(''));
